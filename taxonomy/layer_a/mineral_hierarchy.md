@@ -1,6 +1,6 @@
 # Mineral and Material Hierarchy
 
-## Version 0.1.0
+## Version 0.2.0
 
 This document defines the full mineral/material taxonomy. Each entry includes:
 - **Canonical name** (used as the tag value in pipeline outputs)

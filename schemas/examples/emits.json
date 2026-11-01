@@ -1,0 +1,73 @@
+{
+  "_comment": "EMITS — environmental intensity record, with ambiguity flag for scope uncertainty. Source text: 'HPAL processing in Indonesia generates approximately 35 tCO2e per tonne of nickel, primarily from coal-fired power.' Family: Measurement (unary).",
+  "statement_id": "STMT-DOC-2026-00001-P031-R0007",
+  "schema_version": "0.2.0",
+  "epistemic_tier": "silver",
+  "predicate": "EMITS",
+  "family": "measurement",
+  "subject": {
+    "entity_id": "ENT-hpal",
+    "entity_type": "technology",
+    "canonical_name": "hpal",
+    "raw_mention": "HPAL processing in Indonesia",
+    "alias_resolved": true
+  },
+  "object": null,
+  "extraction": {
+    "extraction_type": "direct",
+    "extraction_method": "text_extraction",
+    "source_entity_id": "DOC-2026-00001-P031-E001",
+    "source_chunk_id": "DOC-2026-00001-P031-E001-C004",
+    "page_number": 31,
+    "raw_text": "HPAL processing in Indonesia generates approximately 35 tCO2e per tonne of nickel, primarily from coal-fired power.",
+    "table_row_index": null,
+    "inferred_from": null
+  },
+  "scope": {
+    "material_form": "nickel_contained",
+    "metric_basis": "refining_output",
+    "geographic_scope": "country_level",
+    "temporal_scope": "atemporal",
+    "reporting_basis": "third_party_estimate",
+    "data_source_basis": "secondary_compilation"
+  },
+  "attributes": {
+    "emission_type": "co2e",
+    "value": 35,
+    "unit": "tCO2e/t_product",
+    "intensity_or_absolute": "intensity",
+    "intensity_basis": "per tonne of nickel",
+    "mineral_context": "nickel"
+  },
+  "completeness": {
+    "structural_satisfied": true,
+    "analytical_satisfied": false,
+    "gold_precheck_satisfied": false,
+    "missing_structural_fields": [],
+    "missing_analytical_fields": ["time_period", "ghg_scope"],
+    "missing_gold_fields": []
+  },
+  "evidence_packet_id": "STEP-DOC-2026-00001-P031-REL-0007",
+  "lineage": {
+    "source_document_id": "DOC-2026-00001",
+    "taxonomy_version": "0.3.1",
+    "conversion_factors_used": [],
+    "model_versions": {
+      "extraction_model": "qwen3.5:32b"
+    },
+    "skill_versions": {
+      "relationship_extraction_text": "0.1.0"
+    },
+    "processing_timestamp": "2026-04-15T11:05:00Z"
+  },
+  "ambiguity_flags": [
+    {
+      "ambiguity_id": "AMB-DOC-2026-00001-P031-001",
+      "ambiguity_type": "entity_resolution",
+      "field": "subject.entity_id",
+      "description": "Subject is stated as 'HPAL processing in Indonesia'. Unclear whether this should be the technology entity 'hpal' (technology-level) or a country-level subject 'IDN' with technology context. Extracted as technology; country context captured in scope.geographic_scope=country_level.",
+      "blocking": false
+    }
+  ],
+  "created_at": "2026-04-15T11:05:00Z"
+}

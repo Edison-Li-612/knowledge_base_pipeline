@@ -1,8 +1,8 @@
 # Units and Metrics Reference
 
-## Version 0.1.0
+## Version 0.2.0
 
-This document defines the canonical unit system, metric types, and normalisation rules for the pipeline. Agents use this when parsing numeric values, normalising units, and validating extracted data.
+This document defines the canonical unit system, metric types, and normalisation rules for the pipeline. Layer 1 and Layer 2 services use this when parsing numeric values, normalising units, and validating extracted data.
 
 ---
 
@@ -31,7 +31,7 @@ The pipeline normalises all mass values to **metric tonnes (t)** as the canonica
 
 2. **"kt" context**: "kt" almost always means kilotonnes in mining/mineral contexts. In precious metals, "kt" could mean karat — but this is distinguishable by context.
 
-3. **Thousands separators**: Documents may use commas (61,000) or periods (61.000) as thousands separators depending on locale. The table numeric parsing agent handles this using locale detection heuristics (see Agent 3b skills).
+3. **Thousands separators**: Documents may use commas (61,000) or periods (61.000) as thousands separators depending on locale. The Layer 2 table interpretation service handles this using locale detection heuristics.
 
 ---
 
@@ -119,7 +119,7 @@ Prices are reported as currency per mass unit.
 ### Temporal parsing rules
 
 1. **Year is the minimum temporal resolution.** If a production figure says "2023", store `year: 2023`. If it says "Q3 2023", store `year: 2023, quarter: 3`.
-2. **"Last year" / "previous year"**: Resolve relative to the document's publication date (from Agent 1 metadata). If the document is dated 2024, "last year" = 2023.
+2. **"Last year" / "previous year"**: Resolve relative to the document's publication date (from Layer 1 document intake metadata). If the document is dated 2024, "last year" = 2023.
 3. **Fiscal year ambiguity**: Different countries and companies have different fiscal year boundaries (e.g., India: Apr-Mar; Japan: Apr-Mar; Australia: Jul-Jun; US: Oct-Sep for government, Jan-Dec for most companies). When a source says "FY2023" without specifying boundaries, store the fiscal year label and note the ambiguity. Do not assume calendar year alignment.
 4. **Forecast vs historical**: If a figure is a forecast (e.g., "projected 2030 production"), tag with `year: 2030` and add a qualifier: `forecast`. Do not mix forecasts with historical data in the same analytical tables without clear labelling.
 
@@ -157,14 +157,14 @@ The "metric" field on a data point specifies what the number represents in terms
 
 1. If the source explicitly states the metric (e.g., "86,000 tonnes of lithium content"), use the stated metric directly.
 2. If the source uses an abbreviation (e.g., "LCE", "REO"), resolve via the taxonomy and tag accordingly.
-3. If the source is ambiguous (e.g., "86,000 tonnes of lithium"), default to `contained_metal` and note the ambiguity. The taxonomy support agent (Agent 4 support mode) can be invoked for disambiguation using document context.
+3. If the source is ambiguous (e.g., "86,000 tonnes of lithium"), default to `contained_metal` and note the ambiguity. Layer 3 (Ambiguity Resolution Service) can be invoked for disambiguation using document context.
 4. If a known source consistently uses a specific metric (e.g., USGS MCS reports lithium in contained Li), this convention can be stored as a source-level default and applied automatically.
 
 ---
 
 ## 8. Domain validation ranges
 
-Sanity-check ranges for common data points. The validation agent (Agent 7) uses these to flag outliers. Values outside these ranges are not automatically rejected — they are flagged for review.
+Sanity-check ranges for common data points. Layer 5 (Adjudication and Trust Management) uses these to flag outliers. Values outside these ranges are not automatically rejected — they are flagged for review.
 
 | Data point | Mineral | Plausible range | Notes |
 |---|---|---|---|

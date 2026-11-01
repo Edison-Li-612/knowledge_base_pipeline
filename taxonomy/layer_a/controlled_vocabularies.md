@@ -1,8 +1,8 @@
 # Controlled Vocabularies
 
-## Version 0.1.0
+## Version 0.2.0
 
-This document defines all controlled vocabularies (enumerations) used by the pipeline. When tagging or extracting data, agents must use values from these lists. Unrecognised values trigger the taxonomy evolution mechanism.
+This document defines all controlled vocabularies (enumerations) used by the pipeline. When tagging or extracting data, pipeline services must use values from these lists. Unrecognised values trigger the Layer C proposal mechanism.
 
 ---
 
@@ -34,7 +34,7 @@ The end-to-end critical mineral supply chain, from resource to recovery. A miner
 
 ## 2. Source types
 
-Classification of document sources. Determines the default reliability weight used by the confidence scoring agent (Agent 7).
+Classification of document sources. Determines the default reliability weight used by Layer 5 (Adjudication and Trust Management).
 
 | Canonical name | Display name | Default reliability weight | Notes |
 |---|---|---|---|
@@ -54,9 +54,9 @@ Classification of document sources. Determines the default reliability weight us
 
 ### Source type assignment rules
 
-- The document intake agent (Agent 1) assigns the source type during metadata extraction.
+- Layer 1 (document intake, Section 5.2.2) assigns the source type during metadata extraction.
 - If a document doesn't fit any category, use `industry_analysis` as the default and flag for review.
-- A single document may contain content of varying reliability (e.g., a news article quoting USGS data). The source type applies to the *document*, not the individual data point. Specific data points that cite a more authoritative source can have their confidence adjusted upward by the validation agent.
+- A single document may contain content of varying reliability (e.g., a news article quoting USGS data). The source type applies to the *document*, not the individual data point. Specific data points that cite a more authoritative source can have their confidence adjusted upward by Layer 5 (Adjudication).
 
 ---
 
@@ -125,7 +125,7 @@ How a data point was obtained from the source document.
 
 ## 7. Extraction methods (for chart/vision data)
 
-How a numeric value was read from a chart or figure by the vision interpretation agent.
+How a numeric value was read from a chart or figure by Layer 2 vision interpretation service.
 
 | Canonical name | Display name | Confidence modifier | Description |
 |---|---|---|---|

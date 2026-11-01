@@ -1,0 +1,495 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "extracted_statement.schema.json",
+  "title": "ExtractedStatement",
+  "description": "Cross-layer statement schema for a single extracted relationship triple. Used as the Layer 2 output format (always silver on first write), and reused by Layer 5 when updating epistemic_tier. The predicate field discriminates the required structure of the attributes object and the binary/unary nature of the triple.",
+  "$schema_version": "0.2.0",
+
+  "type": "object",
+  "additionalProperties": false,
+
+  "required": [
+    "statement_id",
+    "schema_version",
+    "epistemic_tier",
+    "predicate",
+    "family",
+    "subject",
+    "extraction",
+    "scope",
+    "attributes",
+    "completeness",
+    "evidence_packet_id",
+    "lineage",
+    "ambiguity_flags",
+    "created_at"
+  ],
+
+  "$defs": {
+    "EntityRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "entity_type", "canonical_name"],
+      "properties": {
+        "entity_id": {
+          "type": "string",
+          "description": "Neo4j node ID or provisional slug if not yet persisted. Format: ENT-{canonical_slug}.",
+          "examples": ["ENT-AUS", "ENT-bhp-group", "ENT-greenbushes-mine"]
+        },
+        "entity_type": {
+          "type": "string",
+          "enum": ["country", "region", "organisation", "facility", "project", "mineral", "product", "technology", "policy"]
+        },
+        "canonical_name": {
+          "type": "string",
+          "description": "The canonical name from Layer A taxonomy or Layer B alias resolution."
+        },
+        "raw_mention": {
+          "type": "string",
+          "description": "Exact string as it appeared in the source before alias resolution."
+        },
+        "alias_resolved": {
+          "type": "boolean",
+          "description": "Whether raw_mention required alias resolution to reach canonical_name."
+        }
+      }
+    }
+  },
+
+  "properties": {
+
+    "statement_id": {
+      "type": "string",
+      "description": "Unique statement identifier. Format: STMT-{doc_id}-P{page:03d}-R{seq:04d}.",
+      "pattern": "^STMT-DOC-\\d{4}-\\d{5}-P\\d{3}-R\\d{4}$"
+    },
+
+    "schema_version": {
+      "type": "string",
+      "description": "Version of this schema used to produce this record.",
+      "const": "0.2.0"
+    },
+
+    "epistemic_tier": {
+      "type": "string",
+      "description": "Epistemic tier of this record. Layer 2 always writes 'silver'. Layer 5 may update to 'gold' on promotion or retain 'silver' after failed admissibility check.",
+      "enum": ["silver", "gold"]
+    },
+
+    "predicate": {
+      "type": "string",
+      "description": "The relationship type. Discriminates the required structure of the attributes object and whether object is required or forbidden.",
+      "enum": [
+        "PRODUCES",
+        "HAS_CAPACITY",
+        "CONSUMES",
+        "RESERVES",
+        "IMPORTS",
+        "EXPORTS",
+        "SUPPLIES",
+        "HAS_SUPPLY_AGREEMENT",
+        "OPERATES",
+        "LOCATED_IN",
+        "OWNS",
+        "SUBSIDIARY_OF",
+        "PARTNERS_WITH",
+        "REGULATES",
+        "PROCESSES_AT_STAGE",
+        "USES_TECHNOLOGY",
+        "INVESTS_IN",
+        "DEPENDS_ON",
+        "PRICES",
+        "MEMBER_OF",
+        "EMPLOYS",
+        "EMITS"
+      ]
+    },
+
+    "family": {
+      "type": "string",
+      "description": "Relationship family. Derivable from predicate, but stored explicitly for efficient downstream filtering and family-specific Layer 5 logic.",
+      "enum": ["structural", "transactional", "capability_dependency", "measurement"]
+    },
+
+    "subject": { "$ref": "#/$defs/EntityRef" },
+
+    "object": {
+      "description": "Object entity of the triple. MUST be omitted for measurement predicates (PRICES, EMPLOYS, EMITS). MUST be present and valid for all other predicates. Enforced by allOf conditions below.",
+      "$ref": "#/$defs/EntityRef"
+    },
+
+    "extraction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "extraction_type",
+        "extraction_method",
+        "source_entity_id",
+        "source_chunk_id",
+        "page_number",
+        "raw_text"
+      ],
+      "properties": {
+        "extraction_type": {
+          "type": "string",
+          "enum": ["direct", "inferred"],
+          "description": "Direct: explicitly stated. Inferred: derived from context, calculation, or implication."
+        },
+        "extraction_method": {
+          "type": "string",
+          "enum": ["text_extraction", "table_extraction", "chart_extraction"]
+        },
+        "source_entity_id": {
+          "type": "string",
+          "description": "Layer 1 bronze entity from which this was extracted. Format: DOC-{id}-P{page:03d}-E{seq:04d}."
+        },
+        "source_chunk_id": {
+          "type": "string",
+          "description": "Text chunk or table row within the entity. For non-text entities, equals source_entity_id."
+        },
+        "page_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_text": {
+          "type": "string",
+          "description": "Verbatim source text or table cell content. For chart extraction, this is the chart title and any axis labels that support the extraction."
+        },
+        "table_row_index": {
+          "type": "integer",
+          "description": "For table_extraction: 0-based row index within the source table entity."
+        },
+        "inferred_from": {
+          "type": "string",
+          "description": "For inferred extractions: brief description of the inference chain."
+        }
+      }
+    },
+
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["geographic_scope", "temporal_scope", "data_source_basis"],
+      "description": "Scope dimensions. First-class semantic content, not metadata. Used for contradiction detection, admissibility, and query-time truth ranking. Two records with different scope dimensions are NOT contradictory — they are measuring different things. Omit material_form and metric_basis for structural/atemporal relationships where they are not applicable. Use null when applicable but unknown.",
+      "properties": {
+        "material_form": {
+          "type": ["string", "null"],
+          "description": "Omit for structural/atemporal relationships (LOCATED_IN, MEMBER_OF, etc.). Null means applicable but not determinable from source. E.g., 'contained_metal', 'spodumene_concentrate', 'lithium_carbonate_equivalent', 'rare_earth_oxide'."
+        },
+        "metric_basis": {
+          "type": ["string", "null"],
+          "description": "Omit for structural/atemporal relationships. Null means applicable but not determinable. E.g., 'production_volume', 'refining_output', 'export_volume', 'capacity_nameplate', 'capacity_actual', 'reserves', 'consumption'."
+        },
+        "geographic_scope": {
+          "type": "string",
+          "enum": ["country_level", "facility_level", "regional", "global", "not_applicable"],
+          "description": "Use 'not_applicable' for atemporal structural relationships such as MEMBER_OF where geography is meaningless."
+        },
+        "temporal_scope": {
+          "type": "string",
+          "description": "The time period this statement describes. Use ISO 8601-based strings: calendar_year_2023, fiscal_year_2023_jun, Q3_2024, monthly_2024_01, cumulative, atemporal, as_of_2024_06.",
+          "examples": ["calendar_year_2023", "fiscal_year_2023_jun", "Q3_2024", "atemporal", "as_of_2024_06"]
+        },
+        "reporting_basis": {
+          "type": ["string", "null"],
+          "enum": ["company_reported", "national_statistics", "survey_based", "modelled", "satellite_derived", null],
+          "description": "How the reporter defines or produces the metric. Null if not determinable. Note: provenance class (primary vs secondary) is captured separately in data_source_basis."
+        },
+        "data_source_basis": {
+          "type": "string",
+          "enum": ["primary_source", "secondary_compilation", "third_party_analysis"],
+          "description": "Provenance class of the source document for this statement."
+        }
+      }
+    },
+
+    "attributes": {
+      "type": "object",
+      "description": "Relationship-specific attributes. The required fields within this object depend on the predicate value and requirement class (S/A/G/C) defined in taxonomy/layer_a/relationships.md. S-class fields are enforced by allOf conditions below. A-class and G-class fields are documented in the ontology but not schema-enforced here — they are evaluated by Layer 5 admissibility logic and reflected in the completeness block. Omit unpopulated optional fields rather than setting them to null.",
+      "additionalProperties": true
+    },
+
+    "completeness": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Completeness assessment against S/A/G requirement classes. Populated by Layer 2 at extraction time. Used by Layer 5 as input to tier promotion decisions. Note: gold_precheck_satisfied is a local schema/field completeness check only — Layer 5 makes the final gold promotion decision based on additional criteria (contradiction status, ambiguity resolution, source credibility).",
+      "required": [
+        "structural_satisfied",
+        "analytical_satisfied",
+        "gold_precheck_satisfied",
+        "missing_structural_fields",
+        "missing_analytical_fields",
+        "missing_gold_fields"
+      ],
+      "properties": {
+        "structural_satisfied": {
+          "type": "boolean",
+          "description": "All S-class fields are present. If false, Layer 6 must not persist this record."
+        },
+        "analytical_satisfied": {
+          "type": "boolean",
+          "description": "All A-class fields are present. If false, the record is stored as silver but flagged as analytically incomplete."
+        },
+        "gold_precheck_satisfied": {
+          "type": "boolean",
+          "description": "All S+A+G fields are present and all required scope dimensions are populated. True means this record is a candidate for gold promotion — it does not mean Layer 5 will promote it."
+        },
+        "missing_structural_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "S-class fields that are missing. Non-empty means structural_satisfied=false and record must not be persisted.",
+          "examples": [[], ["volume", "unit"]]
+        },
+        "missing_analytical_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "A-class fields that are missing. Non-empty means analytical_satisfied=false.",
+          "examples": [[], ["time_period", "supply_chain_stage"]]
+        },
+        "missing_gold_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "G-class fields that are missing. Non-empty means gold_precheck_satisfied=false.",
+          "examples": [[], ["reporting_standard"]]
+        }
+      }
+    },
+
+    "evidence_packet_id": {
+      "type": "string",
+      "description": "Reference to the associated evidence packet stored separately. Format: STEP-{doc_id}-P{page:03d}-REL-{seq:04d}.",
+      "examples": ["STEP-DOC-2026-00001-P005-REL-0001"]
+    },
+
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Processing provenance. Identifies exactly which taxonomy version, model versions, skill versions, and conversion factors produced this record. Required for targeted re-processing when any of these are updated.",
+      "required": [
+        "source_document_id",
+        "taxonomy_version",
+        "conversion_factors_used",
+        "model_versions",
+        "skill_versions",
+        "processing_timestamp"
+      ],
+      "properties": {
+        "source_document_id": { "type": "string" },
+        "taxonomy_version": {
+          "type": "string",
+          "description": "Semantic version of taxonomy/layer_a at time of extraction.",
+          "examples": ["0.3.1"]
+        },
+        "conversion_factors_used": {
+          "type": "array",
+          "description": "Conversion factors applied during extraction (e.g., unit normalisation). Empty array if none.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["factor_id", "version", "verification_status"],
+            "properties": {
+              "factor_id": { "type": "string", "examples": ["CF-Li-spod6-metal"] },
+              "version": { "type": "string", "examples": ["0.1.0"] },
+              "verification_status": {
+                "type": "string",
+                "enum": ["assumed", "verified", "disputed"]
+              }
+            }
+          }
+        },
+        "model_versions": {
+          "type": "object",
+          "description": "Model identifiers used in this extraction step.",
+          "required": ["extraction_model"],
+          "properties": {
+            "extraction_model": { "type": "string", "examples": ["qwen3.5:32b"] }
+          },
+          "additionalProperties": false
+        },
+        "skill_versions": {
+          "type": "object",
+          "description": "Skill/prompt template versions used.",
+          "additionalProperties": { "type": "string" }
+        },
+        "processing_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+
+    "ambiguity_flags": {
+      "type": "array",
+      "description": "Ambiguities detected during extraction that could not be resolved inline. Each entry is routed to Layer 3 (Ambiguity Resolution Service). Empty array if no ambiguities.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ambiguity_id", "ambiguity_type", "field", "description", "blocking"],
+        "properties": {
+          "ambiguity_id": {
+            "type": "string",
+            "description": "Format: AMB-{doc_id}-P{page:03d}-{seq:03d}."
+          },
+          "ambiguity_type": {
+            "type": "string",
+            "enum": [
+              "entity_resolution",
+              "unit_ambiguity",
+              "metric_form_ambiguity",
+              "temporal_ambiguity",
+              "scope_ambiguity",
+              "relationship_type_ambiguity"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "description": "The field path that is affected, e.g., 'subject.entity_id', 'attributes.metric'."
+          },
+          "description": { "type": "string" },
+          "blocking": {
+            "type": "boolean",
+            "description": "If true, Layer 6 must not persist this record until Layer 3 resolves it. If false, the record can be persisted as silver with this flag attached."
+          }
+        }
+      }
+    },
+
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this statement record was first created."
+    },
+
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of last update. Present only when Layer 5 modifies this record (tier promotion, scope correction, ambiguity resolution)."
+    }
+  },
+
+  "allOf": [
+
+    {
+      "$comment": "UNARY / BINARY enforcement. Measurement predicates (PRICES, EMPLOYS, EMITS) must NOT include an object entity. All other predicates MUST include an object entity.",
+      "if": {
+        "properties": { "predicate": { "enum": ["PRICES", "EMPLOYS", "EMITS"] } },
+        "required": ["predicate"]
+      },
+      "then": {
+        "not": { "required": ["object"] }
+      },
+      "else": {
+        "required": ["object"]
+      }
+    },
+
+    {
+      "$comment": "FAMILY consistency: structural predicates must have family=structural.",
+      "if": {
+        "properties": { "predicate": { "enum": ["OPERATES", "LOCATED_IN", "OWNS", "SUBSIDIARY_OF", "PARTNERS_WITH", "MEMBER_OF"] } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "family": { "const": "structural" } } }
+    },
+
+    {
+      "$comment": "FAMILY consistency: transactional predicates must have family=transactional.",
+      "if": {
+        "properties": { "predicate": { "enum": ["IMPORTS", "EXPORTS", "SUPPLIES", "HAS_SUPPLY_AGREEMENT", "INVESTS_IN", "REGULATES"] } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "family": { "const": "transactional" } } }
+    },
+
+    {
+      "$comment": "FAMILY consistency: capability/dependency predicates.",
+      "if": {
+        "properties": { "predicate": { "enum": ["PRODUCES", "HAS_CAPACITY", "CONSUMES", "RESERVES", "PROCESSES_AT_STAGE", "USES_TECHNOLOGY", "DEPENDS_ON"] } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "family": { "const": "capability_dependency" } } }
+    },
+
+    {
+      "$comment": "FAMILY consistency: measurement predicates.",
+      "if": {
+        "properties": { "predicate": { "enum": ["PRICES", "EMPLOYS", "EMITS"] } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "family": { "const": "measurement" } } }
+    },
+
+    {
+      "$comment": "S-CLASS enforcement: PRICES requires price, currency, unit_basis, date in attributes.",
+      "if": {
+        "properties": { "predicate": { "const": "PRICES" } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "attributes": { "required": ["price", "currency", "unit_basis", "date"] } } }
+    },
+
+    {
+      "$comment": "S-CLASS enforcement: EMPLOYS requires headcount in attributes.",
+      "if": {
+        "properties": { "predicate": { "const": "EMPLOYS" } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "attributes": { "required": ["headcount"] } } }
+    },
+
+    {
+      "$comment": "S-CLASS enforcement: EMITS requires emission_type, value, unit in attributes.",
+      "if": {
+        "properties": { "predicate": { "const": "EMITS" } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "attributes": { "required": ["emission_type", "value", "unit"] } } }
+    },
+
+    {
+      "$comment": "S-CLASS enforcement: HAS_CAPACITY requires capacity, unit in attributes.",
+      "if": {
+        "properties": { "predicate": { "const": "HAS_CAPACITY" } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "attributes": { "required": ["capacity", "unit"] } } }
+    },
+
+    {
+      "$comment": "S-CLASS enforcement: RESERVES requires volume, unit in attributes.",
+      "if": {
+        "properties": { "predicate": { "const": "RESERVES" } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "attributes": { "required": ["volume", "unit"] } } }
+    },
+
+    {
+      "$comment": "S-CLASS enforcement: IMPORTS, EXPORTS, SUPPLIES, HAS_SUPPLY_AGREEMENT require commodity in attributes.",
+      "if": {
+        "properties": { "predicate": { "enum": ["IMPORTS", "EXPORTS", "SUPPLIES", "HAS_SUPPLY_AGREEMENT"] } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "attributes": { "required": ["commodity"] } } }
+    },
+
+    {
+      "$comment": "S-CLASS enforcement: PROCESSES_AT_STAGE requires supply_chain_stage in attributes.",
+      "if": {
+        "properties": { "predicate": { "const": "PROCESSES_AT_STAGE" } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "attributes": { "required": ["supply_chain_stage"] } } }
+    },
+
+    {
+      "$comment": "S-CLASS enforcement: DEPENDS_ON requires dependency_type in attributes (A-class but structurally load-bearing per ontology).",
+      "if": {
+        "properties": { "predicate": { "const": "DEPENDS_ON" } },
+        "required": ["predicate"]
+      },
+      "then": { "properties": { "attributes": { "required": ["dependency_type"] } } }
+    }
+
+  ]
+}

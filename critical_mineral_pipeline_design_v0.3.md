@@ -1,10 +1,24 @@
 # Critical Mineral Supply Chain Knowledge Pipeline
 
-## Design Document v0.3
+## Design Document v0.3.1
 
 **Project context:** This pipeline is being developed as part of Eddie's doctoral research at the Institute for Manufacturing (IfM), University of Cambridge, within the Industrial Resilience Research Group and the Global Supply Chain Observatory (GSCO) project. The research sits at the intersection of knowledge management, R&D management, and LLMs, with a focus on how LLMs can elicit, structure, and govern tacit/implicit domain knowledge.
 
-**Last updated:** 2026-04-14
+**Last updated:** 2026-04-15
+
+**Changelog from v0.3 → v0.3.1:**
+- Added `project` as a new entity type (named undertakings not yet operational facilities).
+- Introduced attribute requirement classes (S/A/G/C) to replace flat Required/Optional distinction.
+- Introduced relationship families (Structural, Transactional, Capability/Dependency, Measurement).
+- Separated PRODUCES (actual output) from HAS_CAPACITY (capability claims) to eliminate semantic ambiguity.
+- Separated SUPPLIES (realised flows) from HAS_SUPPLY_AGREEMENT (contractual/announced agreements).
+- Added `dependency_type` as analytically required on DEPENDS_ON.
+- Restricted INVESTS_IN object types: `mineral` removed (was semantically ambiguous; use a `project` entity instead).
+- Renamed field `scope` → `ghg_scope` on EMITS to avoid collision with scope dimensions terminology.
+- Renamed field `scope` → `scope_description` on REGULATES/RESTRICTS for same reason.
+- Harmonised `year` → `time_period` across all relationships (accommodates quarters, date ranges, fiscal years).
+- Renamed PRICES field `per_unit` → `unit_basis` for clarity.
+- Relationship count: 22 domain relationships (up from 15 in v0.3 summary; the full list was always larger).
 
 **Changelog from v0.2:**
 - Reorganised from numbered agents into six functional layers with clearer separation of deterministic, interpretive, governance, and persistence concerns.
@@ -167,52 +181,94 @@ Agent encounters unknown concept
 
 ### 3.3 Entity types (from canonical ontology, Layer A)
 
-| Entity type | Description | Hierarchy |
-|---|---|---|
-| Mineral/Material | A mineral commodity or processed material | Two-level: group (e.g., rare earth elements) and species (e.g., neodymium). MEMBER_OF relationships link species to groups. |
-| Country/Region | A geographic entity | ISO 3166-1 alpha-3 codes |
-| Organisation | Any supply chain participant | Canonical names with alias table in Layer B |
-| Facility/Site | Physical supply chain location | Subtypes: mine, refinery, processing_plant, smelter, recycling_facility, port |
-| Product/Component | Manufactured items or intermediates | Battery cells, cathodes, anodes, precursors, concentrates, refined chemicals |
-| Policy/Regulation | Rules, laws, agreements | Export controls, trade agreements, environmental standards |
-| Technology/Process | Methods and technologies | Extraction methods (DLE, brine evaporation, hard-rock mining), refining, recycling |
+| Entity type | Tag | Description | Notes |
+|---|---|---|---|
+| Mineral/Material | `mineral` | A mineral commodity or processed material | Two-level hierarchy: group (e.g., `rare_earth_elements`) and species (e.g., `neodymium`). MEMBER_OF relationships link species to groups. |
+| Country/Region | `country` / `region` | A geographic entity | ISO 3166-1 alpha-3 codes for countries. Regions (e.g., `eu_27`, `sub_saharan_africa`, `asia_pacific`) use canonical names. |
+| Organisation | `organisation` | Any supply chain participant | Canonical names with alias table in Layer B (`organisation_aliases.md`). |
+| Facility/Site | `facility` | A physical, operational supply chain location | Subtypes in `controlled_vocabularies.md` Section 9: mine, refinery, processing_plant, smelter, recycling_facility, port. |
+| **Project** | `project` | A named undertaking not yet an operational facility | New in v0.3.1. Projects may graduate to `facility` when operational; both nodes may coexist in the graph. Examples: "India's critical mineral exploration programme", "the proposed Saltend REE refinery project". |
+| Product/Component | `product` | Manufactured items or intermediates | Battery cells, cathodes, anodes, precursors, concentrates, refined chemicals. Defined in `controlled_vocabularies.md` Section 11. |
+| Policy/Regulation | `policy` | Rules, laws, agreements | Export controls, trade agreements, environmental standards. |
+| Technology/Process | `technology` | Methods and technologies | Extraction methods (DLE, brine evaporation, hard-rock mining), refining processes, recycling technologies. Defined in `controlled_vocabularies.md` Section 10. |
 
 ### 3.4 Relationship types (from canonical ontology, Layer A)
 
-| Relationship | Subject → Object | Key attributes |
+Full attribute schemas, requirement classes, and extraction guidance are in `taxonomy/layer_a/relationships.md` (v0.3.1). This section provides the reference summary.
+
+#### Attribute requirement classes
+
+Relationships use a four-class requirement system instead of a flat required/optional distinction:
+
+| Class | Code | Meaning |
 |---|---|---|
-| PRODUCES | Country/Facility → Mineral | volume, unit, metric, year, capacity_type |
-| SUPPLIES / TRADES | Entity → Entity | commodity, volume, value, currency, time_period |
-| OPERATES | Organisation → Facility | ownership_percent, start_date |
-| LOCATED_IN | Facility → Country/Region | |
-| OWNS / HAS_STAKE_IN | Organisation → Organisation/Facility | ownership_percent, acquisition_date |
-| IMPORTS / EXPORTS | Country → Country | commodity, volume, value, currency, year, share_percent |
-| REGULATES / RESTRICTS | Policy → Commodity/Activity/Country | effective_date, scope |
-| PROCESSES_AT_STAGE | Facility → Mineral | supply_chain_stage |
-| INVESTS_IN | Organisation → Facility/Project | investment_amount, currency, year |
-| DEPENDS_ON | Product/Component → Mineral | quantity_per_unit, unit |
-| RESERVES | Country → Mineral | volume, unit, reserve_classification |
-| PRICES | Mineral → (temporal) | price, currency, unit, price_type, date |
-| MEMBER_OF | Mineral (species) → Mineral (group) | structural |
-| EMPLOYS | Organisation/Facility → (workforce) | headcount, year, skill_category |
-| EMITS | Facility/Process → (environmental) | co2_per_tonne, water_usage, year |
+| Structural required | `S` | Minimum to instantiate the relationship at silver tier |
+| Analytical required | `A` | Required for intended downstream analyses (time-series, cross-country comparison). Missing = flagged analytically incomplete. |
+| Gold required | `G` | Required for gold-tier admissibility. All S and A fields must also be satisfied. |
+| Conditional required | `C` | Required only when another field is present (condition stated in taxonomy). |
+
+#### Relationship families
+
+| Family | Characteristics | Relationships |
+|---|---|---|
+| **Structural** | Describes static supply chain topology. Often atemporal or slowly changing. | OPERATES, LOCATED_IN, OWNS, SUBSIDIARY_OF, PARTNERS_WITH, MEMBER_OF |
+| **Transactional** | Describes flows of materials, money, or agreements. Always temporally scoped. | IMPORTS, EXPORTS, SUPPLIES, HAS_SUPPLY_AGREEMENT, INVESTS_IN, REGULATES |
+| **Capability/Dependency** | Describes what an entity can do, needs, or has. May be temporally scoped. | PRODUCES, HAS_CAPACITY, CONSUMES, RESERVES, PROCESSES_AT_STAGE, USES_TECHNOLOGY, DEPENDS_ON |
+| **Measurement** | Unary records attaching a measured value to an entity. No object entity. | PRICES, EMPLOYS, EMITS |
+
+#### Full relationship index
+
+| # | Relationship | Family | Subject → Object | Key structural attributes |
+|---|---|---|---|---|
+| 1 | PRODUCES | Capability | Country/Organisation/Facility → Mineral/Product | volume (optional), unit (C), metric (C), time_period (A), supply_chain_stage (A) |
+| 2 | HAS_CAPACITY | Capability | Facility/Organisation/Project → Mineral/Product | capacity (S), unit (S), capacity_type (A), supply_chain_stage (A) |
+| 3 | CONSUMES | Capability | Country/Organisation/Facility → Mineral/Product | volume (optional), unit (C), metric (C), time_period (A), qualifier |
+| 4 | RESERVES | Capability | Country/Organisation/Facility → Mineral | volume (S), unit (S), metric (A), resource_or_reserve (A), time_period (A) |
+| 5 | IMPORTS | Transactional | Country/Region → Country/Region | commodity (S), time_period (A), volume/value (at least one for A) |
+| 6 | EXPORTS | Transactional | Country/Region → Country/Region | commodity (S), time_period (A), volume/value (at least one for A) |
+| 7 | SUPPLIES | Transactional | Organisation/Facility → Organisation/Facility/Country | commodity (S), time_period (A) — realised flows only |
+| 8 | HAS_SUPPLY_AGREEMENT | Transactional | Organisation/Country → Organisation/Country | commodity (S), agreement_type (A) — contracts and announcements |
+| 9 | OPERATES | Structural | Organisation → Facility/Project | status (G) |
+| 10 | LOCATED_IN | Structural | Facility/Project/Organisation → Country/Region | sub_national_region |
+| 11 | OWNS | Structural | Organisation/Country → Organisation/Facility/Project | ownership_percent, stake_type, status |
+| 12 | SUBSIDIARY_OF | Structural | Organisation → Organisation | relationship_type, since |
+| 13 | PARTNERS_WITH | Structural | Organisation/Country → Organisation/Country | partnership_type (A), commodity |
+| 14 | REGULATES | Transactional | Policy/Country → Mineral/Country/Organisation/Product | regulation_type (A), effective_date |
+| 15 | PROCESSES_AT_STAGE | Capability | Facility/Organisation/Country → Mineral/Product | supply_chain_stage (S), input_form, output_form |
+| 16 | USES_TECHNOLOGY | Capability | Facility/Organisation → Technology | process_stage, mineral_context |
+| 17 | INVESTS_IN | Transactional | Organisation/Country → Facility/Project/Organisation/Technology | investment_amount (optional), investment_type |
+| 18 | DEPENDS_ON | Capability | Product/Technology/Country → Mineral/Product/Country | dependency_type (A), quantity_per_unit |
+| 19 | PRICES | Measurement | Mineral/Product → (unary) | price (S), currency (S), unit_basis (S), date (S), form (A) |
+| 20 | MEMBER_OF | Structural | Mineral (species) → Mineral (group) | sub_group — atemporal |
+| 21 | EMPLOYS | Measurement | Organisation/Facility/Country → (unary) | headcount (S), time_period (A) |
+| 22 | EMITS | Measurement | Facility/Organisation/Technology → (unary) | emission_type (S), value (S), unit (S), intensity_or_absolute (A) |
+
+#### Key design decisions
+
+- **PRODUCES vs HAS_CAPACITY**: These are separated because production figures and capacity claims are fundamentally different: one is observed output, the other is a capability assertion. Conflating them is a common source of contradictions in supply chain data.
+- **SUPPLIES vs HAS_SUPPLY_AGREEMENT**: Realised flows and contractual commitments have different epistemic status. A signed offtake does not guarantee delivery. Separating them allows the system to track when contracts convert to flows.
+- **INVESTS_IN object constraint**: `mineral` is no longer a valid object. "India invested in lithium" should be encoded as INVESTS_IN(IND, [lithium_exploration_programme]) using a `project` entity. This prevents the graph from having investment edges directly to commodity nodes, which creates misleading traversal paths.
+- **`project` entity type**: Named undertakings that are not yet operational facilities (exploration programmes, proposed plants, announced expansions). Projects allow pre-operational investment, permitting, and partnership relationships to be captured without polluting the facility registry.
 
 ### 3.5 Conversion factor management
 
-Conversion factors live in Layer B (operational mapping registry). Each factor carries:
+Conversion factors live in Layer B (`taxonomy/layer_b/conversion_factors.md`). Each factor carries:
 
 | Field | Description |
 |---|---|
-| mineral | The mineral this factor applies to |
-| form_from | Source form (e.g., spodumene_concentrate_6pct) |
-| form_to | Target form (e.g., contained_lithium_metal) |
-| factor_value | The multiplication factor |
-| source | Where this factor came from (llm_pretrained, usgs_factsheet, academic_paper, etc.) |
-| verification_status | assumed, verified, disputed |
-| verified_against | Reference document/URL if verified |
-| last_updated | Timestamp |
+| `factor_id` | Machine-readable ID used in dependency lineage blocks. Convention: `CF-{mineral}-{from_short}-{to_short}` (e.g., `CF-Li-spod6-metal`). |
+| `form_from` | Source form (e.g., `spodumene_concentrate_6pct`) |
+| `form_to` | Target form (e.g., `lithium_metal`) |
+| `factor_value` | The multiplication factor |
+| `derivation` | How the factor was calculated |
+| `source` | Where this factor came from (stoichiometric, industry convention, academic paper, etc.) |
+| `verification_status` | `assumed`, `verified`, `disputed` |
+| `version` | Incremented when the factor value changes |
+| `last_updated` | ISO 8601 date |
 
 **Epistemic rule:** Conversion factors with `verification_status: assumed` can produce silver-tier derived values but are forbidden from automatic gold promotion. Any analytical view using assumed factors must visibly flag this dependency.
+
+**Lineage integration:** Dependency lineage blocks on silver/gold records reference conversion factors by `factor_id` and `version`. When a factor is revised, all records that used the old version can be identified and flagged for recalculation without a full pipeline re-run.
 
 ### 3.6 Source type enumeration with reliability weights
 
